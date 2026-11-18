@@ -107,8 +107,12 @@ Required changes:
 2. Agent ID auth (`agentid.ts`, new file):
    - `POST /agentid/login` body `{handle, address}` -> returns a challenge
      message + nonce: `Sign in to AgentForge as <handle>.ai\n\nNonce: <hex>`.
-     Store nonce server-side with 10-min expiry.
-   - `POST /agentid/verify` body `{handle, address, signature}` -> verify
+     Nonces are stateless: `<hex ms timestamp>-<16 hex random>` — verify
+     checks the embedded timestamp (10-min expiry) from the `nonce` the
+     client sends back, so login survives hosts that recycle the process
+     between login and verify (the in-memory challenge map is only a
+     fallback for clients that don't send the nonce).
+   - `POST /agentid/verify` body `{handle, address, signature, nonce?}` -> verify
      signature over the challenge (use `viem` as a dependency — allowed now),
      then verify on-chain via public BSC RPC JSON-RPC `eth_call`:
      `ownerOf(keccak256(handle)) == address` AND `balanceOf(address) > 0`.

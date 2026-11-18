@@ -58,6 +58,31 @@ const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 interface Challenge { nonce: string; message: string; expiresAt: number }
 const challenges = new Map<string, Challenge>();
 
+// Stateless nonces: `<hex ms timestamp>-<16 hex random chars>`.
+// The timestamp is part of the nonce itself, so verify can check freshness
+// without the in-memory challenges map — the map is only a best-effort
+// fallback. This matters on hosts that recycle/sleep the process between the
+// login and verify requests (the map would be empty on verify, and every
+// login would fail with "challenge expired").
+export function issueNonce(): string {
+  return `${Date.now().toString(16)}-${randomBytes(8).toString('hex')}`;
+}
+
+function nonceIssuedAtMs(nonce: unknown): number | null {
+  if (typeof nonce !== 'string') return null;
+  const m = /^([0-9a-f]+)-[0-9a-f]{16}$/.exec(nonce);
+  if (!m) return null;
+  const ms = Number.parseInt(m[1], 16);
+  return Number.isSafeInteger(ms) ? ms : null;
+}
+
+function nonceIsFresh(nonce: unknown): boolean {
+  const issuedAt = nonceIssuedAtMs(nonce);
+  if (issuedAt === null) return false;
+  const now = Date.now();
+  return issuedAt <= now + 60_000 && now - issuedAt <= NONCE_TTL_MS;
+}
+
 export interface Session { address: Address; handle: string; expiresAt: number }
 const sessions = new Map<string, Session>();
 
@@ -187,7 +212,7 @@ export async function handleAgentId(req: IncomingMessage, res: ServerResponse): 
       sendJson(res, 400, { error: 'handle (lowercase, without .ai) and a valid address are required' });
       return true;
     }
-    const nonce = randomBytes(16).toString('hex');
+    const nonce = issueNonce();
     const message = challengeMessage(handle, nonce);
     challenges.set(address.toLowerCase(), { nonce, message, expiresAt: Date.now() + NONCE_TTL_MS });
     sendJson(res, 200, { handle, handleAi: `${handle}.ai`, address, nonce, message });
@@ -205,7 +230,7 @@ export async function handleAgentId(req: IncomingMessage, res: ServerResponse): 
       sendJson(res, 400, { error: 'handle (lowercase, without .ai) and a valid address are required' });
       return true;
     }
-    const nonce = randomBytes(16).toString('hex');
+    const nonce = issueNonce();
     const typedData = typedDataForLogin(handle, nonce);
     // Stored in the same challenges map as the plain flow; verify-typed
     // reconstructs the typed data from the stored nonce.
@@ -220,20 +245,32 @@ export async function handleAgentId(req: IncomingMessage, res: ServerResponse): 
       sendJson(res, 400, { error: 'Problems parsing JSON' });
       return true;
     }
-    const { handle, address, signature } = parsed.value;
+    const { handle, address, signature, nonce } = parsed.value;
     if (!validHandle(handle) || !validAddress(address) || typeof signature !== 'string' || !/^0x[0-9a-fA-F]+$/.test(signature)) {
       sendJson(res, 400, { error: 'handle, address and signature are required' });
       return true;
     }
-    const challenge = challenges.get(address.toLowerCase());
-    if (!challenge || challenge.expiresAt < Date.now()) {
-      sendJson(res, 401, { error: 'challenge expired — request a new one via /agentid/login' });
-      return true;
+    // Resolve the signed message: prefer the client-supplied stateless nonce
+    // (its timestamp proves freshness), fall back to the stored challenge.
+    let message: string;
+    if (typeof nonce === 'string' && nonce !== '') {
+      if (!nonceIsFresh(nonce)) {
+        sendJson(res, 401, { error: 'challenge expired — request a new one via /agentid/login' });
+        return true;
+      }
+      message = challengeMessage(handle, nonce);
+    } else {
+      const challenge = challenges.get(address.toLowerCase());
+      if (!challenge || challenge.expiresAt < Date.now()) {
+        sendJson(res, 401, { error: 'challenge expired — request a new one via /agentid/login' });
+        return true;
+      }
+      message = challenge.message;
     }
     // 1) Signature must match the challenge for this handle.
     let sigOk = false;
     try {
-      sigOk = await verifyMessage({ address, message: challenge.message, signature: signature as `0x${string}` });
+      sigOk = await verifyMessage({ address, message, signature: signature as `0x${string}` });
     } catch {
       sigOk = false;
     }
@@ -269,18 +306,30 @@ export async function handleAgentId(req: IncomingMessage, res: ServerResponse): 
       sendJson(res, 400, { error: 'Problems parsing JSON' });
       return true;
     }
-    const { handle, address, signature } = parsed.value;
+    const { handle, address, signature, nonce } = parsed.value;
     if (!validHandle(handle) || !validAddress(address) || typeof signature !== 'string' || !/^0x[0-9a-fA-F]+$/.test(signature)) {
       sendJson(res, 400, { error: 'handle, address and signature are required' });
       return true;
     }
-    const challenge = challenges.get(address.toLowerCase());
-    if (!challenge || challenge.expiresAt < Date.now()) {
-      sendJson(res, 401, { error: 'challenge expired — request a new one via /agentid/login-typed' });
-      return true;
+    // Resolve the signed nonce: prefer the client-supplied stateless nonce
+    // (its timestamp proves freshness), fall back to the stored challenge.
+    let nonceValue: string;
+    if (typeof nonce === 'string' && nonce !== '') {
+      if (!nonceIsFresh(nonce)) {
+        sendJson(res, 401, { error: 'challenge expired — request a new one via /agentid/login-typed' });
+        return true;
+      }
+      nonceValue = nonce;
+    } else {
+      const challenge = challenges.get(address.toLowerCase());
+      if (!challenge || challenge.expiresAt < Date.now()) {
+        sendJson(res, 401, { error: 'challenge expired — request a new one via /agentid/login-typed' });
+        return true;
+      }
+      nonceValue = challenge.nonce;
     }
     // 1) Signature must match the typed-data challenge for this handle.
-    const typedData = typedDataForLogin(handle, challenge.nonce);
+    const typedData = typedDataForLogin(handle, nonceValue);
     let sigOk = false;
     try {
       sigOk = await verifyTypedData({

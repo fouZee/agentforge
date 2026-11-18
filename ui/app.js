@@ -92,11 +92,11 @@ $('loginBtn').onclick = async () => {
   if (!/^[a-z0-9][a-z0-9-]{0,62}$/.test(handle)) { log('Enter a valid handle: lowercase, without .ai'); return; }
   if (!account) { log('Connect your wallet first.'); return; }
   try {
-    const { message } = await api('/agentid/login', { method: 'POST', body: JSON.stringify({ handle, address: account }) });
+    const { message, nonce } = await api('/agentid/login', { method: 'POST', body: JSON.stringify({ handle, address: account }) });
     const { walletClient } = clients();
     log(`Signing login challenge for ${handle}.ai …`);
     const signature = await walletClient.signMessage({ account, message });
-    const { token } = await api('/agentid/verify', { method: 'POST', body: JSON.stringify({ handle, address: account, signature }) });
+    const { token } = await api('/agentid/verify', { method: 'POST', body: JSON.stringify({ handle, address: account, signature, nonce }) });
     localStorage.setItem('agentforge_session', token);
     await refreshMe();
     log(`Signed in as ${handle}.ai`);
