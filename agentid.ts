@@ -21,6 +21,9 @@
 // Sessions are random 32-byte tokens, server-side only, 24h expiry.
 
 import { randomBytes, createHash } from 'node:crypto';
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createPublicClient, http, keccak256, toHex, verifyMessage, verifyTypedData, type Address } from 'viem';
 import { bsc, bscTestnet } from 'viem/chains';
@@ -86,6 +89,41 @@ function nonceIsFresh(nonce: unknown): boolean {
 export interface Session { address: Address; handle: string; expiresAt: number }
 const sessions = new Map<string, Session>();
 
+// Sessions persist to disk (data/sessions.json, gitignored) so a login
+// survives the host recycling/sleeping the process — the same failure that
+// killed in-memory challenges before nonces went stateless. Loaded at boot,
+// saved on every change; a failed write only loses persistence, never the
+// in-memory session.
+const SESSIONS_FILE = join(dirname(fileURLToPath(import.meta.url)), 'data', 'sessions.json');
+
+function saveSessions(): void {
+  try {
+    mkdirSync(dirname(SESSIONS_FILE), { recursive: true });
+    const tmp = `${SESSIONS_FILE}.tmp-${process.pid}`;
+    writeFileSync(tmp, JSON.stringify([...sessions.entries()]), 'utf8');
+    renameSync(tmp, SESSIONS_FILE);
+  } catch {
+    // Persistence is best-effort; the in-memory session still works.
+  }
+}
+
+function loadSessions(): void {
+  try {
+    if (!existsSync(SESSIONS_FILE)) return;
+    const raw = JSON.parse(readFileSync(SESSIONS_FILE, 'utf8')) as Array<[string, Session]>;
+    const now = Date.now();
+    for (const [token, session] of raw) {
+      if (session && typeof session.address === 'string' && typeof session.handle === 'string' && typeof session.expiresAt === 'number' && session.expiresAt > now) {
+        sessions.set(token, session);
+      }
+    }
+  } catch {
+    // Start with an empty session map.
+  }
+}
+
+loadSessions();
+
 export function tokenIdForHandle(handle: string): bigint {
   return BigInt(keccak256(toHex(handle)));
 }
@@ -127,6 +165,7 @@ export function resolveSession(token: string): ForgeUser | null {
   if (!session) return null;
   if (session.expiresAt < Date.now()) {
     sessions.delete(token);
+    saveSessions();
     return null;
   }
   return sessionUser(session);
@@ -296,6 +335,7 @@ export async function handleAgentId(req: IncomingMessage, res: ServerResponse): 
     challenges.delete(address.toLowerCase());
     const token = randomBytes(32).toString('hex');
     sessions.set(token, { address, handle, expiresAt: Date.now() + SESSION_TTL_MS });
+    saveSessions();
     sendJson(res, 200, { token, handle, handleAi: `${handle}.ai`, address, expiresInSeconds: SESSION_TTL_MS / 1000 });
     return true;
   }
@@ -365,6 +405,7 @@ export async function handleAgentId(req: IncomingMessage, res: ServerResponse): 
     challenges.delete(address.toLowerCase());
     const token = randomBytes(32).toString('hex');
     sessions.set(token, { address, handle, expiresAt: Date.now() + SESSION_TTL_MS });
+    saveSessions();
     sendJson(res, 200, { token, handle, handleAi: `${handle}.ai`, address, expiresInSeconds: SESSION_TTL_MS / 1000 });
     return true;
   }
@@ -374,7 +415,7 @@ export async function handleAgentId(req: IncomingMessage, res: ServerResponse): 
     const token = typeof header === 'string' && header.startsWith('Bearer ') ? header.slice(7).trim() : '';
     const session = token === '' ? undefined : sessions.get(token);
     if (!session || session.expiresAt < Date.now()) {
-      if (session) sessions.delete(token);
+      if (session) { sessions.delete(token); saveSessions(); }
       sendJson(res, 401, { error: 'Requires authentication' });
       return true;
     }
