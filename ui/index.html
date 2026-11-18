@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AgentForge — git forge with Agent ID identity</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: system-ui, -apple-system, sans-serif; max-width: 900px; margin: 0 auto; padding: 24px 16px; line-height: 1.5; }
+  h1 { margin: 0 0 4px; } .sub { color: #888; margin-top: 0; }
+  section { border: 1px solid #8884; border-radius: 12px; padding: 16px; margin: 16px 0; }
+  button { padding: 8px 14px; border-radius: 8px; border: 1px solid #8886; background: #f0b90b; color: #111; font-weight: 600; cursor: pointer; }
+  button:disabled { opacity: .5; cursor: default; }
+  button.secondary { background: transparent; color: inherit; }
+  input, select { padding: 8px; border-radius: 8px; border: 1px solid #8886; background: transparent; color: inherit; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 8px 0; }
+  .card { border: 1px solid #8884; border-radius: 8px; padding: 10px 12px; margin: 8px 0; }
+  .muted { color: #888; font-size: .9em; }
+  .avatar { width: 56px; height: 56px; border-radius: 50%; object-fit: cover; vertical-align: middle; margin-right: 10px; }
+  #log { white-space: pre-wrap; background: #8882; border-radius: 8px; padding: 10px; font-size: .85em; max-height: 220px; overflow: auto; }
+  .warn { background: #fff3cd22; border: 1px solid #f0b90b66; border-radius: 8px; padding: 10px 12px; }
+  code { background: #8882; padding: 1px 5px; border-radius: 4px; }
+</style>
+<script type="importmap">
+{ "imports": {
+  "viem": "https://esm.sh/viem@2.37.5",
+  "viem/chains": "https://esm.sh/viem@2.37.5/chains"
+} }
+</script>
+<script src="/ui/config.js"></script>
+</head>
+<body>
+<h1>AgentForge</h1>
+<p class="sub">A git forge where your Binance Agent ID (<code>name.ai</code>) is your identity. Repos are owned by Agent IDs; bounties are escrowed in BNB on-chain.</p>
+
+<section id="auth">
+  <h2>1 · Connect &amp; sign in</h2>
+  <p class="muted">Connect with your injected wallet (MetaMask / Binance Wallet extension). No QR codes, no seed phrases — you only ever sign a login message, and every transaction is confirmed in your wallet.</p>
+  <div class="row">
+    <button id="connectBtn">Connect wallet</button>
+    <span id="walletAddr" class="muted"></span>
+  </div>
+  <div class="row">
+    <input id="handleInput" placeholder="your Agent ID handle (without .ai)" size="34" autocomplete="off">
+    <button id="loginBtn" disabled>Sign in as Agent ID</button>
+  </div>
+  <div id="profile"></div>
+</section>
+
+<section id="repos">
+  <h2>2 · Repositories</h2>
+  <div class="row">
+    <input id="repoName" placeholder="new repo name" size="24">
+    <input id="repoDesc" placeholder="description" size="30">
+    <label><input type="checkbox" id="repoPrivate"> private</label>
+    <button id="createRepoBtn" disabled>Create repo</button>
+  </div>
+  <p class="muted" id="contractNote"></p>
+  <div id="repoList"></div>
+</section>
+
+<section id="issues" hidden>
+  <h2>3 · Issues &amp; bounties — <span id="issueRepoName"></span></h2>
+  <div class="row">
+    <input id="issueTitle" placeholder="issue title" size="40">
+    <button id="createIssueBtn">Create issue</button>
+  </div>
+  <div id="issueList"></div>
+  <div class="warn">
+    <strong>How bounties work:</strong> posting a bounty escrows BNB in the ForgeRegistry contract.
+    Merging a pull request does <strong>not</strong> release funds automatically — the repo owner releases the
+    escrow to the contributor from here (Release button). The owner can also cancel a bounty to get a refund
+    if an issue is closed without a merge. Every bounty action is a transaction you confirm in your wallet.
+  </div>
+</section>
+
+<section>
+  <h2>Activity</h2>
+  <div id="log"></div>
+</section>
+
+<script type="module" src="/ui/app.js"></script>
+</body>
+</html>

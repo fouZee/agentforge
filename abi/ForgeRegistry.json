@@ -1,0 +1,403 @@
+[
+ {
+  "type": "constructor",
+  "inputs": [
+   {
+    "name": "agentId",
+    "type": "address",
+    "internalType": "address"
+   }
+  ],
+  "stateMutability": "nonpayable"
+ },
+ {
+  "type": "receive",
+  "stateMutability": "payable"
+ },
+ {
+  "type": "function",
+  "name": "AGENT_ID",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "address",
+    "internalType": "contract IAgentId"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "addCollaborator",
+  "inputs": [
+   {
+    "name": "repoId",
+    "type": "uint256",
+    "internalType": "uint256"
+   },
+   {
+    "name": "collaborator",
+    "type": "address",
+    "internalType": "address"
+   }
+  ],
+  "outputs": [],
+  "stateMutability": "nonpayable"
+ },
+ {
+  "type": "function",
+  "name": "cancelBounty",
+  "inputs": [
+   {
+    "name": "repoId",
+    "type": "uint256",
+    "internalType": "uint256"
+   },
+   {
+    "name": "issueId",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "outputs": [],
+  "stateMutability": "nonpayable"
+ },
+ {
+  "type": "function",
+  "name": "getBounty",
+  "inputs": [
+   {
+    "name": "repoId",
+    "type": "uint256",
+    "internalType": "uint256"
+   },
+   {
+    "name": "issueId",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "getRepo",
+  "inputs": [
+   {
+    "name": "repoId",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "owner",
+    "type": "address",
+    "internalType": "address"
+   },
+   {
+    "name": "name",
+    "type": "string",
+    "internalType": "string"
+   },
+   {
+    "name": "visibility",
+    "type": "string",
+    "internalType": "string"
+   },
+   {
+    "name": "createdAt",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "isCollaborator",
+  "inputs": [
+   {
+    "name": "repoId",
+    "type": "uint256",
+    "internalType": "uint256"
+   },
+   {
+    "name": "who",
+    "type": "address",
+    "internalType": "address"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "",
+    "type": "bool",
+    "internalType": "bool"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "postBounty",
+  "inputs": [
+   {
+    "name": "repoId",
+    "type": "uint256",
+    "internalType": "uint256"
+   },
+   {
+    "name": "issueId",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "outputs": [],
+  "stateMutability": "payable"
+ },
+ {
+  "type": "function",
+  "name": "registerRepo",
+  "inputs": [
+   {
+    "name": "name",
+    "type": "string",
+    "internalType": "string"
+   },
+   {
+    "name": "visibility",
+    "type": "string",
+    "internalType": "string"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "repoId",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "stateMutability": "nonpayable"
+ },
+ {
+  "type": "function",
+  "name": "releaseBounty",
+  "inputs": [
+   {
+    "name": "repoId",
+    "type": "uint256",
+    "internalType": "uint256"
+   },
+   {
+    "name": "issueId",
+    "type": "uint256",
+    "internalType": "uint256"
+   },
+   {
+    "name": "contributor",
+    "type": "address",
+    "internalType": "address"
+   }
+  ],
+  "outputs": [],
+  "stateMutability": "nonpayable"
+ },
+ {
+  "type": "function",
+  "name": "repoCount",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "event",
+  "name": "BountyCancelled",
+  "inputs": [
+   {
+    "name": "repoId",
+    "type": "uint256",
+    "indexed": true,
+    "internalType": "uint256"
+   },
+   {
+    "name": "issueId",
+    "type": "uint256",
+    "indexed": true,
+    "internalType": "uint256"
+   },
+   {
+    "name": "amount",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   }
+  ],
+  "anonymous": false
+ },
+ {
+  "type": "event",
+  "name": "BountyPosted",
+  "inputs": [
+   {
+    "name": "repoId",
+    "type": "uint256",
+    "indexed": true,
+    "internalType": "uint256"
+   },
+   {
+    "name": "issueId",
+    "type": "uint256",
+    "indexed": true,
+    "internalType": "uint256"
+   },
+   {
+    "name": "poster",
+    "type": "address",
+    "indexed": true,
+    "internalType": "address"
+   },
+   {
+    "name": "amount",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   }
+  ],
+  "anonymous": false
+ },
+ {
+  "type": "event",
+  "name": "BountyReleased",
+  "inputs": [
+   {
+    "name": "repoId",
+    "type": "uint256",
+    "indexed": true,
+    "internalType": "uint256"
+   },
+   {
+    "name": "issueId",
+    "type": "uint256",
+    "indexed": true,
+    "internalType": "uint256"
+   },
+   {
+    "name": "contributor",
+    "type": "address",
+    "indexed": true,
+    "internalType": "address"
+   },
+   {
+    "name": "amount",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   }
+  ],
+  "anonymous": false
+ },
+ {
+  "type": "event",
+  "name": "CollaboratorAdded",
+  "inputs": [
+   {
+    "name": "repoId",
+    "type": "uint256",
+    "indexed": true,
+    "internalType": "uint256"
+   },
+   {
+    "name": "collaborator",
+    "type": "address",
+    "indexed": true,
+    "internalType": "address"
+   }
+  ],
+  "anonymous": false
+ },
+ {
+  "type": "event",
+  "name": "RepoRegistered",
+  "inputs": [
+   {
+    "name": "repoId",
+    "type": "uint256",
+    "indexed": true,
+    "internalType": "uint256"
+   },
+   {
+    "name": "owner",
+    "type": "address",
+    "indexed": true,
+    "internalType": "address"
+   },
+   {
+    "name": "name",
+    "type": "string",
+    "indexed": false,
+    "internalType": "string"
+   },
+   {
+    "name": "visibility",
+    "type": "string",
+    "indexed": false,
+    "internalType": "string"
+   }
+  ],
+  "anonymous": false
+ },
+ {
+  "type": "error",
+  "name": "AgentIdRequired",
+  "inputs": []
+ },
+ {
+  "type": "error",
+  "name": "EmptyName",
+  "inputs": []
+ },
+ {
+  "type": "error",
+  "name": "InvalidVisibility",
+  "inputs": []
+ },
+ {
+  "type": "error",
+  "name": "NoBounty",
+  "inputs": []
+ },
+ {
+  "type": "error",
+  "name": "NotRepoOwner",
+  "inputs": []
+ },
+ {
+  "type": "error",
+  "name": "TransferFailed",
+  "inputs": []
+ },
+ {
+  "type": "error",
+  "name": "ZeroAddress",
+  "inputs": []
+ },
+ {
+  "type": "error",
+  "name": "ZeroValue",
+  "inputs": []
+ }
+]

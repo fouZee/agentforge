@@ -1,0 +1,9 @@
+node_modules/
+data/
+deployer.key
+contracts/out/
+contracts/cache/
+contracts/broadcast/
+logs/
+bin/
+.env

@@ -1,0 +1,11 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+solc = "0.8.24"
+
+[rpc_endpoints]
+bsc = "https://bsc-dataseed.bnbchain.org"
+bsc_testnet = "https://data-seed-prebsc-1-s1.bnbchain.org:8545"
+
+# See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
