@@ -114,6 +114,16 @@ Required changes:
      `ownerOf(keccak256(handle)) == address` AND `balanceOf(address) > 0`.
      On success issue a random session token (32 bytes hex), store
      `{address, handle, expiresAt}` server-side.
+   - `POST /agentid/login-typed` / `POST /agentid/verify-typed` — same flow,
+     but the challenge is signed as EIP-712 typed data instead of a plain
+     message, for wallets that can only sign typed data (e.g. Binance
+     Agentic Wallet via the `baw` CLI). `login-typed` returns
+     `typedData = {domain: {name: "AgentForge", version: "1", chainId},
+     types: {Login: [{name: "handle", type: "string"}, {name: "nonce",
+     type: "string"}]}, primaryType: "Login", message: {handle, nonce}}`;
+     `verify-typed` checks the typed-data signature with
+     `viem.verifyTypedData`, then the same on-chain check and session token.
+     The plain-message flow is unchanged.
    - `GET /agentid/me` with `Authorization: Bearer <session>` -> returns
      `{address, handle, handleAi: "<handle>.ai", avatarUrl}` where avatar comes
      from `tokenURI(tokenId)` metadata (fetch, cache; tolerate failure).

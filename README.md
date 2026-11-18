@@ -44,6 +44,8 @@ npm start            # node --experimental-strip-types server.ts
 | `GET /ui/config.js` | — | runtime config (contract address, chain, RPC) |
 | `POST /agentid/login` `{handle, address}` | — | challenge message + nonce (10 min) |
 | `POST /agentid/verify` `{handle, address, signature}` | — | verifies signature + on-chain ownership, issues 24 h session token |
+| `POST /agentid/login-typed` `{handle, address}` | — | EIP-712 typed-data challenge (domain AgentForge, chainId 56) for wallets that only sign typed data (e.g. Binance Agentic Wallet via baw) |
+| `POST /agentid/verify-typed` `{handle, address, signature}` | — | verifies EIP-712 signature + on-chain ownership, issues 24 h session token |
 | `GET /agentid/me` | Bearer session | `{address, handle, handleAi, avatarUrl}` |
 | `GET /api/v3/user`, `/api/v3/user/repos` | Bearer | viewer repos |
 | `POST /api/v3/user/repos` | Bearer (owner) | accepts `chain_repo_id` to link an on-chain repo |

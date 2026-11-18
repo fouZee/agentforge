@@ -1,9 +1,14 @@
 // Agent ID auth for AgentForge (Binance Agent ID Hackathon).
 //
-// Flow:
+// Flow (plain message, EIP-191):
 //   POST /agentid/login  {handle, address}            -> challenge + nonce
 //   POST /agentid/verify {handle, address, signature} -> on-chain check, session token
 //   GET  /agentid/me     (Bearer session)             -> {address, handle, handleAi, avatarUrl}
+//
+// Flow (typed data, EIP-712) — same challenge/on-chain checks, for wallets
+// that can only sign typed data (e.g. Binance Agentic Wallet via baw CLI):
+//   POST /agentid/login-typed  {handle, address}            -> challenge + typedData
+//   POST /agentid/verify-typed {handle, address, signature} -> on-chain check, session token
 //
 // On-chain check (BSC, registry is a constructor/env parameter):
 //   tokenId = uint256(keccak256(bytes(handle)))   // handle lowercase, WITHOUT ".ai"
@@ -17,7 +22,7 @@
 
 import { randomBytes, createHash } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { createPublicClient, http, keccak256, toHex, verifyMessage, type Address } from 'viem';
+import { createPublicClient, http, keccak256, toHex, verifyMessage, verifyTypedData, type Address } from 'viem';
 import { bsc, bscTestnet } from 'viem/chains';
 import type { ForgeUser } from './app.ts';
 
@@ -62,6 +67,23 @@ export function tokenIdForHandle(handle: string): bigint {
 
 export function challengeMessage(handle: string, nonce: string): string {
   return `Sign in to AgentForge as ${handle}.ai\n\nNonce: ${nonce}`;
+}
+
+// ---------------------------------------------------------------------------
+// EIP-712 typed-data login (same nonce/challenge, signed as typed data).
+// Domain chainId follows FORGE_CHAIN_ID (56 on mainnet, 97 on testnet).
+// ---------------------------------------------------------------------------
+
+const TYPED_LOGIN_DOMAIN = { name: 'AgentForge', version: '1', chainId: FORGE_CHAIN_ID } as const;
+const TYPED_LOGIN_TYPES = { Login: [{ name: 'handle', type: 'string' }, { name: 'nonce', type: 'string' }] } as const;
+
+export function typedDataForLogin(handle: string, nonce: string) {
+  return {
+    domain: TYPED_LOGIN_DOMAIN,
+    types: TYPED_LOGIN_TYPES,
+    primaryType: 'Login' as const,
+    message: { handle, nonce },
+  };
 }
 
 function sessionUser(session: Session): ForgeUser {
@@ -172,6 +194,26 @@ export async function handleAgentId(req: IncomingMessage, res: ServerResponse): 
     return true;
   }
 
+  if (req.method === 'POST' && path === '/agentid/login-typed') {
+    const parsed = await readJsonBody(req);
+    if (!parsed.ok) {
+      sendJson(res, 400, { error: 'Problems parsing JSON' });
+      return true;
+    }
+    const { handle, address } = parsed.value;
+    if (!validHandle(handle) || !validAddress(address)) {
+      sendJson(res, 400, { error: 'handle (lowercase, without .ai) and a valid address are required' });
+      return true;
+    }
+    const nonce = randomBytes(16).toString('hex');
+    const typedData = typedDataForLogin(handle, nonce);
+    // Stored in the same challenges map as the plain flow; verify-typed
+    // reconstructs the typed data from the stored nonce.
+    challenges.set(address.toLowerCase(), { nonce, message: JSON.stringify(typedData), expiresAt: Date.now() + NONCE_TTL_MS });
+    sendJson(res, 200, { handle, handleAi: `${handle}.ai`, address, nonce, typedData });
+    return true;
+  }
+
   if (req.method === 'POST' && path === '/agentid/verify') {
     const parsed = await readJsonBody(req);
     if (!parsed.ok) {
@@ -192,6 +234,63 @@ export async function handleAgentId(req: IncomingMessage, res: ServerResponse): 
     let sigOk = false;
     try {
       sigOk = await verifyMessage({ address, message: challenge.message, signature: signature as `0x${string}` });
+    } catch {
+      sigOk = false;
+    }
+    if (!sigOk) {
+      sendJson(res, 401, { error: 'signature does not match the challenge' });
+      return true;
+    }
+    // 2) On-chain: the signer must own the Agent ID for this handle.
+    const tokenId = tokenIdForHandle(handle);
+    try {
+      const [owner, balance] = await Promise.all([
+        publicClient.readContract({ address: AGENT_ID_REGISTRY, abi: AGENT_ID_ABI, functionName: 'ownerOf', args: [tokenId] }),
+        publicClient.readContract({ address: AGENT_ID_REGISTRY, abi: AGENT_ID_ABI, functionName: 'balanceOf', args: [address] }),
+      ]);
+      if (owner.toLowerCase() !== address.toLowerCase() || balance === 0n) {
+        sendJson(res, 403, { error: `address does not own the Agent ID for ${handle}.ai` });
+        return true;
+      }
+    } catch (err) {
+      sendJson(res, 502, { error: `on-chain Agent ID check failed: ${err instanceof Error ? err.message : String(err)}` });
+      return true;
+    }
+    challenges.delete(address.toLowerCase());
+    const token = randomBytes(32).toString('hex');
+    sessions.set(token, { address, handle, expiresAt: Date.now() + SESSION_TTL_MS });
+    sendJson(res, 200, { token, handle, handleAi: `${handle}.ai`, address, expiresInSeconds: SESSION_TTL_MS / 1000 });
+    return true;
+  }
+
+  if (req.method === 'POST' && path === '/agentid/verify-typed') {
+    const parsed = await readJsonBody(req);
+    if (!parsed.ok) {
+      sendJson(res, 400, { error: 'Problems parsing JSON' });
+      return true;
+    }
+    const { handle, address, signature } = parsed.value;
+    if (!validHandle(handle) || !validAddress(address) || typeof signature !== 'string' || !/^0x[0-9a-fA-F]+$/.test(signature)) {
+      sendJson(res, 400, { error: 'handle, address and signature are required' });
+      return true;
+    }
+    const challenge = challenges.get(address.toLowerCase());
+    if (!challenge || challenge.expiresAt < Date.now()) {
+      sendJson(res, 401, { error: 'challenge expired — request a new one via /agentid/login-typed' });
+      return true;
+    }
+    // 1) Signature must match the typed-data challenge for this handle.
+    const typedData = typedDataForLogin(handle, challenge.nonce);
+    let sigOk = false;
+    try {
+      sigOk = await verifyTypedData({
+        address,
+        domain: typedData.domain,
+        types: typedData.types,
+        primaryType: typedData.primaryType,
+        message: typedData.message,
+        signature: signature as `0x${string}`,
+      });
     } catch {
       sigOk = false;
     }
